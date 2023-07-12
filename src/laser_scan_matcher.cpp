@@ -272,16 +272,22 @@ namespace scan_tools
     else
     {
       this->scan_filter_sub_.reset();
+      // reset the previous scan data
+      delete prev_ldp_scan_;
+      prev_ldp_scan_ = nullptr;
     }
     response->success = true;
   }
 
   void LaserScanMatcher::createCache(const sensor_msgs::msg::LaserScan::SharedPtr &scan_msg)
   {
+    const auto num_scan_pts = scan_msg->ranges.size();
     a_cos_.clear();
     a_sin_.clear();
+    a_cos_.reserve(num_scan_pts);
+    a_sin_.reserve(num_scan_pts);
 
-    for (unsigned int i = 0; i < scan_msg->ranges.size(); ++i)
+    for (unsigned int i = 0; i < num_scan_pts; ++i)
     {
       double angle = scan_msg->angle_min + i * scan_msg->angle_increment;
       a_cos_.push_back(cos(angle));
@@ -307,9 +313,15 @@ namespace scan_tools
         return;
       }
 
+      initialized_ = true;
+    }
+
+    // Initialize the prev scan data if its not valid
+    if (!prev_ldp_scan_)
+    {
       laserScanToLDP(scan_msg, prev_ldp_scan_);
       last_icp_time_ = scan_msg->header.stamp;
-      initialized_ = true;
+      return;
     }
 
     LDP curr_ldp_scan;
