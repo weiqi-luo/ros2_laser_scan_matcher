@@ -100,7 +100,7 @@ namespace scan_tools
 
     sm_params input_;
     sm_result output_;
-    LDP prev_ldp_scan_;
+    LDP prev_ldp_scan_{nullptr};
 
     // Grid map parameters
     double resolution_;
