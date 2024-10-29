@@ -21,9 +21,10 @@ def generate_launch_description():
                 "base_frame": "base_link",
                 "odom_frame": "odom_laser",
                 "map_frame": "map",
-                "laser_frame": "base_link",
+                "laser_frame": "base_laser_link",
                 "laser_scan_topic": "/scan_1",
                 "publish_odom": "/odom_laser",
+                "publish_tf": True,
                 "laser_odom_srv_channel": "~/enable_laser_odom",
             }
         ],
@@ -42,6 +43,14 @@ def generate_launch_description():
         output="screen",
     )
 
+    # Define the RViz2 node
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', '/data/iw/config/rviz/iw_laser_matcher.rviz'],
+    )
+
     return LaunchDescription(
         [
             # Declare all launch arguments
@@ -52,6 +61,8 @@ def generate_launch_description():
             ),
             # Launch the laser_scan_matcher node
             laser_scan_matcher_node,
+            # Launch RViz2
+            rviz_node,
             # Call the service to enable laser odometry after a short delay
             TimerAction(period=2.0, actions=[enable_laser_odom]),
         ]
