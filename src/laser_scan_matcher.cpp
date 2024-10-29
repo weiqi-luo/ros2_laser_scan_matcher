@@ -373,7 +373,7 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
 
   tf2::Transform pr_ch_l;
 
-  double dt = (now() - last_icp_time_).nanoseconds() / 1e+9;
+  double dt = (time - last_icp_time_).nanoseconds() / 1e+9;
   // double pr_ch_x, pr_ch_y, pr_ch_a;
   RCLCPP_INFO(get_logger(), "Time since last ICP: %f seconds", dt);
 
@@ -452,12 +452,26 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     odom_msg.pose.pose.orientation.y = f2b_.getRotation().y();
     odom_msg.pose.pose.orientation.z = f2b_.getRotation().z();
     odom_msg.pose.pose.orientation.w = f2b_.getRotation().w();
-
     // Get pose difference in base frame and calculate velocities
     auto pose_difference = prev_f2b_.inverse() * f2b_;
-    odom_msg.twist.twist.linear.x = pose_difference.getOrigin().getX() / dt;
-    odom_msg.twist.twist.linear.y = pose_difference.getOrigin().getY() / dt;
-    odom_msg.twist.twist.angular.z = tf2::getYaw(pose_difference.getRotation()) / dt;
+    RCLCPP_INFO(get_logger(), "Pose difference calculated: x=%f, y=%f, theta=%f",
+        pose_difference.getOrigin().getX(), pose_difference.getOrigin().getY(),
+        tf2::getYaw(pose_difference.getRotation()));
+
+    double linear_x = pose_difference.getOrigin().getX() / dt;
+    RCLCPP_INFO(get_logger(), "Linear velocity x term: %f / %f = %f",
+        pose_difference.getOrigin().getX(), dt, linear_x);
+    odom_msg.twist.twist.linear.x = linear_x;
+
+    double linear_y = pose_difference.getOrigin().getY() / dt;
+    RCLCPP_INFO(get_logger(), "Linear velocity y term: %f / %f = %f",
+        pose_difference.getOrigin().getY(), dt, linear_y);
+    odom_msg.twist.twist.linear.y = linear_y;
+
+    double angular_z = tf2::getYaw(pose_difference.getRotation()) / dt;
+    RCLCPP_INFO(get_logger(), "Angular velocity z term: %f / %f = %f",
+        tf2::getYaw(pose_difference.getRotation()), dt, angular_z);
+    odom_msg.twist.twist.angular.z = angular_z;
 
     prev_f2b_ = f2b_;
 
@@ -509,7 +523,7 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     ld_free(curr_ldp_scan);
     RCLCPP_INFO(get_logger(), "No new keyframe needed");
   }
-  last_icp_time_ = now();
+  last_icp_time_ = time;
   RCLCPP_INFO(get_logger(), "<<<<<<<<<<<<<<<<<<< Scan processing complete");
   return true;
 }
