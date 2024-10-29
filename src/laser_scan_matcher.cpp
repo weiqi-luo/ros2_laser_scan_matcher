@@ -344,7 +344,7 @@ bool LaserScanMatcher::getBaseToLaserTf(const std::string& frame_id) {
 }
 
 bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time) {
-  RCLCPP_INFO(get_logger(), "Processing scan");
+  RCLCPP_INFO(get_logger(), ">>>>>>>>>>>>>>>>>>> Processing scan");
 
   // CSM is used in the following way:
   // The scans are always in the laser frame
@@ -375,6 +375,7 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
 
   double dt = (now() - last_icp_time_).nanoseconds() / 1e+9;
   // double pr_ch_x, pr_ch_y, pr_ch_a;
+  RCLCPP_INFO(get_logger(), "Time since last ICP: %f seconds", dt);
 
   // the predicted change of the laser's position, in the fixed frame
 
@@ -391,6 +392,9 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
   input_.first_guess[0] = pr_ch_l.getOrigin().getX();
   input_.first_guess[1] = pr_ch_l.getOrigin().getY();
   input_.first_guess[2] = tf2::getYaw(pr_ch_l.getRotation());
+
+  RCLCPP_INFO(get_logger(), "First guess: x=%f, y=%f, theta=%f", input_.first_guess[0],
+      input_.first_guess[1], input_.first_guess[2]);
 
   // If they are non-Null, free covariance gsl matrices to avoid leaking memory
   if (output_.cov_x_m) {
@@ -423,6 +427,8 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     f2b_ = f2b_kf_ * corr_ch;
 
     RCLCPP_INFO(get_logger(), "Scan matching successful");
+    RCLCPP_INFO(
+        get_logger(), "Correction: x=%f, y=%f, theta=%f", output_.x[0], output_.x[1], output_.x[2]);
   }
 
   else {
@@ -457,7 +463,15 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
 
     odom_publisher_->publish(odom_msg);
 
-    RCLCPP_INFO(get_logger(), "Published odometry");
+    RCLCPP_INFO(get_logger(),
+        "Published odometry: position x=%f, y=%f, z=%f, orientation x=%f, y=%f, z=%f, w=%f",
+        odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y, odom_msg.pose.pose.position.z,
+        odom_msg.pose.pose.orientation.x, odom_msg.pose.pose.orientation.y,
+        odom_msg.pose.pose.orientation.z, odom_msg.pose.pose.orientation.w);
+
+    RCLCPP_INFO(get_logger(), "Published twist: linear velocity x=%f, y=%f, angular velocity z=%f",
+        odom_msg.twist.twist.linear.x, odom_msg.twist.twist.linear.y,
+        odom_msg.twist.twist.angular.z);
   }
 
   if (publish_tf_) {
@@ -476,7 +490,11 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     // tf2::Stamped<tf2::Transform> transform_msg (f2b_, time, map_frame_, base_frame_);
     tfB_->sendTransform(tf_msg);
 
-    RCLCPP_INFO(get_logger(), "Published transform");
+    RCLCPP_INFO(get_logger(),
+        "Published transform: translation x=%f, y=%f, z=%f, rotation x=%f, y=%f, z=%f, w=%f",
+        tf_msg.transform.translation.x, tf_msg.transform.translation.y,
+        tf_msg.transform.translation.z, tf_msg.transform.rotation.x, tf_msg.transform.rotation.y,
+        tf_msg.transform.rotation.z, tf_msg.transform.rotation.w);
   }
 
   // **** swap old and new
@@ -489,8 +507,10 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     RCLCPP_INFO(get_logger(), "Generated new keyframe");
   } else {
     ld_free(curr_ldp_scan);
+    RCLCPP_INFO(get_logger(), "No new keyframe needed");
   }
   last_icp_time_ = now();
+  RCLCPP_INFO(get_logger(), "<<<<<<<<<<<<<<<<<<< Scan processing complete");
   return true;
 }
 
