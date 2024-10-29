@@ -19,12 +19,12 @@ def generate_launch_description():
             {
                 "use_sim_time": use_sim_time,
                 "base_frame": "base_link",
-                "odom_frame": "odom_laser",
+                "odom_frame": "custom_odom_laser",
                 "map_frame": "map",
-                "laser_frame": "base_laser_link",
-                "laser_scan_topic": "/scan_1",
-                "publish_odom": "/odom_laser",
-                "publish_tf": True,
+                "laser_frame": "lidar_front",
+                "laser_scan_topic": "/robot_interface/micro_scan_front/laser_scan",
+                "publish_odom": "/custom_odom_laser",
+                "publish_tf": False,
                 "laser_odom_srv_channel": "~/custom_enable_laser_odom",
             }
         ],
@@ -36,19 +36,11 @@ def generate_launch_description():
             "ros2",
             "service",
             "call",
-            "/laser_scan_matcher/enable_laser_odom",
+            "/custom_laser_scan_matcher/custom_enable_laser_odom",
             "std_srvs/srv/SetBool",
             '{"data": true}',
         ],
         output="screen",
-    )
-
-    # Define the RViz2 node
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        arguments=["-d", "/data/iw/config/rviz/iw_laser_matcher.rviz"],
     )
 
     return LaunchDescription(
@@ -61,8 +53,6 @@ def generate_launch_description():
             ),
             # Launch the laser_scan_matcher node
             laser_scan_matcher_node,
-            # Launch RViz2
-            rviz_node,
             # Call the service to enable laser odometry after a short delay
             TimerAction(period=2.0, actions=[enable_laser_odom]),
         ]
