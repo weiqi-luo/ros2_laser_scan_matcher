@@ -50,6 +50,7 @@
 #include <sensor_msgs/msg/laser_scan.hpp>
 
 #include "rclcpp/rclcpp.hpp"
+#include "ros2_laser_scan_matcher/filter.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
@@ -105,6 +106,9 @@ class LaserScanMatcher : public rclcpp::Node {
 
   std::vector<double> a_cos_;
   std::vector<double> a_sin_;
+
+  std::unique_ptr<FilterBase> twist_filter_x_;
+  std::unique_ptr<FilterBase> twist_filter_angular_;
 
   void subscribeToTopicsCb(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
       const std::shared_ptr<std_srvs::srv::SetBool::Response> response);
