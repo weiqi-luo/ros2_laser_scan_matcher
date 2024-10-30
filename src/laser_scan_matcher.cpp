@@ -37,6 +37,8 @@
 
 #include "ros2_laser_scan_matcher/laser_scan_matcher.h"
 
+#include "ros2_laser_scan_matcher/filter.hpp"
+
 #undef min
 #undef max
 
@@ -242,6 +244,25 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   enable_node_srv_ = this->create_service<std_srvs::srv::SetBool>(
       enable_laser_odom_service_channel, bind(&LaserScanMatcher::subscribeToTopicsCb, this,
                                              std::placeholders::_1, std::placeholders::_2));
+
+  // Create filters based on configuration
+  std::string filter_type = this->declare_parameter("filter.type", std::string("low_pass"));
+
+  if (filter_type == "low_pass") {
+    twist_filter_x_ = std::make_unique<LowPassFilter>(shared_from_this());
+    twist_filter_angular_ = std::make_unique<LowPassFilter>(shared_from_this());
+  } else if (filter_type == "moving_average") {
+    twist_filter_x_ = std::make_unique<MovingAverageFilter>(shared_from_this());
+    twist_filter_angular_ = std::make_unique<MovingAverageFilter>(shared_from_this());
+  } else if (filter_type == "median") {
+    twist_filter_x_ = std::make_unique<MedianFilter>(shared_from_this());
+    twist_filter_angular_ = std::make_unique<MedianFilter>(shared_from_this());
+  } else {
+    RCLCPP_WARN(get_logger(), "Unknown filter type '%s', defaulting to low pass filter",
+        filter_type.c_str());
+    twist_filter_x_ = std::make_unique<LowPassFilter>(shared_from_this());
+    twist_filter_angular_ = std::make_unique<LowPassFilter>(shared_from_this());
+  }
 }
 
 LaserScanMatcher::~LaserScanMatcher() {
@@ -458,20 +479,19 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
         pose_difference.getOrigin().getX(), pose_difference.getOrigin().getY(),
         tf2::getYaw(pose_difference.getRotation()));
 
-    double linear_x = pose_difference.getOrigin().getX() / dt;
-    RCLCPP_INFO(get_logger(), "Linear velocity x term: %f / %f = %f",
-        pose_difference.getOrigin().getX(), dt, linear_x);
-    odom_msg.twist.twist.linear.x = linear_x;
+    // Calculate raw velocities
+    double raw_linear_x = pose_difference.getOrigin().getX() / dt;
+    double raw_linear_y = pose_difference.getOrigin().getY() / dt;
+    double raw_angular_z = tf2::getYaw(pose_difference.getRotation()) / dt;
 
-    double linear_y = pose_difference.getOrigin().getY() / dt;
-    RCLCPP_INFO(get_logger(), "Linear velocity y term: %f / %f = %f",
-        pose_difference.getOrigin().getY(), dt, linear_y);
-    odom_msg.twist.twist.linear.y = linear_y;
+    // Apply filters
+    double filtered_linear_x = twist_filter_x_->update(time, raw_linear_x);
+    double filtered_angular_z = twist_filter_angular_->update(time, raw_angular_z);
 
-    double angular_z = tf2::getYaw(pose_difference.getRotation()) / dt;
-    RCLCPP_INFO(get_logger(), "Angular velocity z term: %f / %f = %f",
-        tf2::getYaw(pose_difference.getRotation()), dt, angular_z);
-    odom_msg.twist.twist.angular.z = angular_z;
+    // Use filtered velocities in message
+    odom_msg.twist.twist.linear.x = filtered_linear_x;
+    odom_msg.twist.twist.linear.y = raw_linear_y;
+    odom_msg.twist.twist.angular.z = filtered_angular_z;
 
     prev_f2b_ = f2b_;
 
@@ -580,7 +600,6 @@ void LaserScanMatcher::createTfFromXYTheta(double x, double y, double theta, tf2
 
   RCLCPP_INFO(get_logger(), "Created transform from x: %f, y: %f, theta: %f", x, y, theta);
 }
-
 }  // namespace scan_tools
 
 int main(int argc, char** argv) {
