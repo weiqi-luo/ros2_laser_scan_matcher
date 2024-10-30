@@ -1,66 +1,64 @@
 #pragma once
 
 #include <deque>
-#include <memory>
-#include <rclcpp/rclcpp.hpp>
+#include <string>
+#include <vector>
 
 class FilterBase {
  public:
-  explicit FilterBase(const rclcpp::Node::SharedPtr& node, const std::string& filter_name);
-  double update(const rclcpp::Time& time, double current_value);
+  explicit FilterBase(double max_value = 1.0);
+  double update(double time, double current_value);
   virtual void reset() { is_initialized_ = false; }
 
  protected:
-  virtual double filterImpl(const rclcpp::Time& time, double current_value) = 0;
+  virtual double filterImpl(double time, double current_value) = 0;
 
-  rclcpp::Node::SharedPtr node_;
-  std::string filter_name_;
-  double max_value_ = 1.0;
+  double max_value_;
   bool is_initialized_ = false;
 };
 
 class LowPassFilter : public FilterBase {
  public:
-  explicit LowPassFilter(const rclcpp::Node::SharedPtr& node);
+  explicit LowPassFilter(double alpha = 0.2, double max_value = 1.0);
 
  protected:
-  double filterImpl(const rclcpp::Time& time, double current_value) override;
+  double filterImpl(double time, double current_value) override;
 
  private:
-  double alpha_ = 0.2;
+  double alpha_;
   double filtered_value_{0.0};
-  rclcpp::Time last_time_{};
+  double last_time_{0.0};
 };
 
 class MovingAverageFilter : public FilterBase {
  public:
-  explicit MovingAverageFilter(const rclcpp::Node::SharedPtr& node);
+  explicit MovingAverageFilter(double time_window = 1.0, double max_value = 1.0);
   void reset() override {
     FilterBase::reset();
     buffer_.clear();
   }
 
  protected:
-  double filterImpl(const rclcpp::Time& time, double current_value) override;
+  double filterImpl(double time, double current_value) override;
 
  private:
-  std::deque<std::pair<rclcpp::Time, double>> buffer_;
-  double time_window_ = 1.0;
+  std::deque<std::pair<double, double>> buffer_;
+  double time_window_;
 };
 
 class MedianFilter : public FilterBase {
  public:
-  explicit MedianFilter(const rclcpp::Node::SharedPtr& node);
+  explicit MedianFilter(double time_window = 1.0, double max_value = 1.0);
   void reset() override {
     FilterBase::reset();
     buffer_.clear();
   }
 
  protected:
-  double filterImpl(const rclcpp::Time& time, double current_value) override;
+  double filterImpl(double time, double current_value) override;
 
  private:
-  std::deque<std::pair<rclcpp::Time, double>> buffer_;
-  double time_window_ = 1.0;
+  std::deque<std::pair<double, double>> buffer_;
+  double time_window_;
   static double getMedian(std::vector<double>& values);
 };
