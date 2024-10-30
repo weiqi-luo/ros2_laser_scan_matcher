@@ -1,14 +1,12 @@
 #include "ros2_laser_scan_matcher/filter.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <numeric>
 
-FilterBase::FilterBase(const rclcpp::Node::SharedPtr& node, const std::string& filter_name)
-    : node_(node) {
-  max_value_ = node_->declare_parameter("filter.max_value", max_value_);
-}
+FilterBase::FilterBase(double max_value) : max_value_(max_value) {}
 
-double FilterBase::update(const rclcpp::Time& time, double current_value) {
+double FilterBase::update(double time, double current_value) {
   if (!is_initialized_) {
     is_initialized_ = true;
     return std::clamp(current_value, -max_value_, max_value_);
@@ -17,14 +15,13 @@ double FilterBase::update(const rclcpp::Time& time, double current_value) {
 }
 
 // Low-pass filter
-LowPassFilter::LowPassFilter(const rclcpp::Node::SharedPtr& node) : FilterBase(node, "low_pass") {
-  alpha_ = node_->declare_parameter("filter.low_pass.alpha", alpha_);
-}
+LowPassFilter::LowPassFilter(double alpha, double max_value)
+    : FilterBase(max_value), alpha_(alpha) {}
 
-double LowPassFilter::filterImpl(const rclcpp::Time& time, double current_value) {
-  if (last_time_.nanoseconds() != 0) {
+double LowPassFilter::filterImpl(double time, double current_value) {
+  if (last_time_ != 0) {
     // Calculate time difference in seconds
-    double dt = (time - last_time_).seconds();
+    double dt = time - last_time_;
 
     // Adjust alpha based on time difference
     // alpha = 1 - e^(-dt/tau), where tau is the time constant
@@ -41,15 +38,13 @@ double LowPassFilter::filterImpl(const rclcpp::Time& time, double current_value)
 }
 
 // Moving average filter
-MovingAverageFilter::MovingAverageFilter(const rclcpp::Node::SharedPtr& node)
-    : FilterBase(node, "moving_average") {
-  time_window_ = node_->declare_parameter("filter.moving_average.time_window", time_window_);
-}
+MovingAverageFilter::MovingAverageFilter(double time_window, double max_value)
+    : FilterBase(max_value), time_window_(time_window) {}
 
-double MovingAverageFilter::filterImpl(const rclcpp::Time& time, double current_value) {
+double MovingAverageFilter::filterImpl(double time, double current_value) {
   buffer_.emplace_back(time, current_value);
 
-  while (!buffer_.empty() && (time - buffer_.front().first).seconds() > time_window_) {
+  while (!buffer_.empty() && (time - buffer_.front().first) > time_window_) {
     buffer_.pop_front();
   }
 
@@ -57,7 +52,7 @@ double MovingAverageFilter::filterImpl(const rclcpp::Time& time, double current_
   double total_weight = 0.0;
 
   for (const auto& [sample_time, value] : buffer_) {
-    double dt = (time - sample_time).seconds();
+    double dt = time - sample_time;
     double weight = std::exp(-dt / time_window_);
     sum += value * weight;
     total_weight += weight;
@@ -67,14 +62,13 @@ double MovingAverageFilter::filterImpl(const rclcpp::Time& time, double current_
 }
 
 // Median filter
-MedianFilter::MedianFilter(const rclcpp::Node::SharedPtr& node) : FilterBase(node, "median") {
-  time_window_ = node_->declare_parameter("filter.median.time_window", time_window_);
-}
+MedianFilter::MedianFilter(double time_window, double max_value)
+    : FilterBase(max_value), time_window_(time_window) {}
 
-double MedianFilter::filterImpl(const rclcpp::Time& time, double current_value) {
+double MedianFilter::filterImpl(double time, double current_value) {
   buffer_.emplace_back(time, current_value);
 
-  while (!buffer_.empty() && (time - buffer_.front().first).seconds() > time_window_) {
+  while (!buffer_.empty() && (time - buffer_.front().first) > time_window_) {
     buffer_.pop_front();
   }
 

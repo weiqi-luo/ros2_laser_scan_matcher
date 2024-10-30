@@ -73,6 +73,7 @@ class LaserScanMatcher : public rclcpp::Node {
   tf2::Transform laser_to_base_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_raw_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_node_srv_;
   // Coordinate parameters
   std::string map_frame_;
@@ -107,6 +108,7 @@ class LaserScanMatcher : public rclcpp::Node {
   std::vector<double> a_cos_;
   std::vector<double> a_sin_;
 
+  // Velocity filters
   std::unique_ptr<FilterBase> twist_filter_x_;
   std::unique_ptr<FilterBase> twist_filter_angular_;
 
@@ -127,6 +129,8 @@ class LaserScanMatcher : public rclcpp::Node {
       const std::string& description = "", const std::string& additional_constraints = "",
       bool read_only = false);
   void createCache(const sensor_msgs::msg::LaserScan::SharedPtr& scan_msg);
+
+  void initFilters();
 
 };  // LaserScanMatcher
 

@@ -173,6 +173,15 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   add_parameter("laser_odom_srv_channel",
       rclcpp::ParameterValue(std::string{"~/enable_laser_odom"}), "enable node service channel");
 
+  add_parameter("filter.type", rclcpp::ParameterValue(std::string("low_pass")),
+      "Type of filter to use (low_pass, moving_average, or median)");
+  add_parameter("filter.max_value", rclcpp::ParameterValue(10.0),
+      "Maximum allowed value for filtered output");
+  add_parameter("filter.low_pass.alpha", rclcpp::ParameterValue(0.1),
+      "Alpha value for low pass filter (0-1)");
+  add_parameter("filter.time_window", rclcpp::ParameterValue(1.0),
+      "Time window for moving average and median filters (seconds)");
+
   auto enable_laser_odom_service_channel =
       this->get_parameter("laser_odom_srv_channel").as_string();
   map_frame_ = this->get_parameter("map_frame").as_string();
@@ -238,6 +247,8 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   if (publish_odom_) {
     odom_publisher_ =
         this->create_publisher<nav_msgs::msg::Odometry>(odom_topic_, rclcpp::SystemDefaultsQoS());
+    odom_publisher_raw_ = this->create_publisher<nav_msgs::msg::Odometry>(
+        "/odom_publisher_raw", rclcpp::SystemDefaultsQoS());
   }
 
   // Create services
@@ -245,24 +256,8 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
       enable_laser_odom_service_channel, bind(&LaserScanMatcher::subscribeToTopicsCb, this,
                                              std::placeholders::_1, std::placeholders::_2));
 
-  // Create filters based on configuration
-  std::string filter_type = this->declare_parameter("filter.type", std::string("low_pass"));
-
-  if (filter_type == "low_pass") {
-    twist_filter_x_ = std::make_unique<LowPassFilter>(shared_from_this());
-    twist_filter_angular_ = std::make_unique<LowPassFilter>(shared_from_this());
-  } else if (filter_type == "moving_average") {
-    twist_filter_x_ = std::make_unique<MovingAverageFilter>(shared_from_this());
-    twist_filter_angular_ = std::make_unique<MovingAverageFilter>(shared_from_this());
-  } else if (filter_type == "median") {
-    twist_filter_x_ = std::make_unique<MedianFilter>(shared_from_this());
-    twist_filter_angular_ = std::make_unique<MedianFilter>(shared_from_this());
-  } else {
-    RCLCPP_WARN(get_logger(), "Unknown filter type '%s', defaulting to low pass filter",
-        filter_type.c_str());
-    twist_filter_x_ = std::make_unique<LowPassFilter>(shared_from_this());
-    twist_filter_angular_ = std::make_unique<LowPassFilter>(shared_from_this());
-  }
+  // Initialize filters
+  initFilters();
 }
 
 LaserScanMatcher::~LaserScanMatcher() {
@@ -480,17 +475,26 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
         tf2::getYaw(pose_difference.getRotation()));
 
     // Calculate raw velocities
-    double raw_linear_x = pose_difference.getOrigin().getX() / dt;
-    double raw_linear_y = pose_difference.getOrigin().getY() / dt;
-    double raw_angular_z = tf2::getYaw(pose_difference.getRotation()) / dt;
+    double linear_x = pose_difference.getOrigin().getX() / dt;
+    double linear_y = pose_difference.getOrigin().getY() / dt;
+    double angular_z = tf2::getYaw(pose_difference.getRotation()) / dt;
+
+    // Use raw velocities in message
+    odom_msg.twist.twist.linear.x = linear_x;
+    odom_msg.twist.twist.linear.y = linear_y;
+    odom_msg.twist.twist.angular.z = angular_z;
+    odom_publisher_raw_->publish(odom_msg);
 
     // Apply filters
-    double filtered_linear_x = twist_filter_x_->update(time, raw_linear_x);
-    double filtered_angular_z = twist_filter_angular_->update(time, raw_angular_z);
+    double filtered_linear_x =
+        twist_filter_x_ ? twist_filter_x_->update(time.nanoseconds() / 1e+9, linear_x) : linear_x;
+    double filtered_angular_z =
+        twist_filter_angular_ ? twist_filter_angular_->update(time.nanoseconds() / 1e+9, angular_z)
+                              : angular_z;
 
     // Use filtered velocities in message
     odom_msg.twist.twist.linear.x = filtered_linear_x;
-    odom_msg.twist.twist.linear.y = raw_linear_y;
+    odom_msg.twist.twist.linear.y = linear_y;
     odom_msg.twist.twist.angular.z = filtered_angular_z;
 
     prev_f2b_ = f2b_;
@@ -599,6 +603,35 @@ void LaserScanMatcher::createTfFromXYTheta(double x, double y, double theta, tf2
   t.setRotation(q);
 
   RCLCPP_INFO(get_logger(), "Created transform from x: %f, y: %f, theta: %f", x, y, theta);
+}
+
+void LaserScanMatcher::initFilters() {
+  // Load common parameters
+  std::string filter_type = this->get_parameter("filter.type").as_string();
+  double max_value = this->get_parameter("filter.max_value").as_double();
+
+  // Create filters based on configuration
+  if (filter_type == "low_pass") {
+    double alpha = this->get_parameter("filter.low_pass.alpha").as_double();
+    twist_filter_x_ = std::make_unique<LowPassFilter>(alpha, max_value);
+    twist_filter_angular_ = std::make_unique<LowPassFilter>(alpha, max_value);
+    RCLCPP_INFO(
+        get_logger(), "Created low pass filters with alpha: %f, max_value: %f", alpha, max_value);
+  } else if (filter_type == "moving_average") {
+    double time_window = this->get_parameter("filter.time_window").as_double();
+    twist_filter_x_ = std::make_unique<MovingAverageFilter>(time_window, max_value);
+    twist_filter_angular_ = std::make_unique<MovingAverageFilter>(time_window, max_value);
+    RCLCPP_INFO(get_logger(), "Created moving average filters with time_window: %f, max_value: %f",
+        time_window, max_value);
+  } else if (filter_type == "median") {
+    double time_window = this->get_parameter("filter.time_window").as_double();
+    twist_filter_x_ = std::make_unique<MedianFilter>(time_window, max_value);
+    twist_filter_angular_ = std::make_unique<MedianFilter>(time_window, max_value);
+    RCLCPP_INFO(get_logger(), "Created median filters with time_window: %f, max_value: %f",
+        time_window, max_value);
+  } else {
+    RCLCPP_ERROR(get_logger(), "Unknown filter type '%s'", filter_type.c_str());
+  }
 }
 }  // namespace scan_tools
 
