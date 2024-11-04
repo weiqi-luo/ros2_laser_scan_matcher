@@ -178,8 +178,6 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
 
   add_parameter("filter.type", rclcpp::ParameterValue(std::string("low_pass")),
       "Type of filter to use (low_pass, moving_average, or median)");
-  add_parameter("filter.max_value", rclcpp::ParameterValue(10.0),
-      "Maximum allowed value for filtered output");
   add_parameter("filter.low_pass.alpha", rclcpp::ParameterValue(0.1),
       "Alpha value for low pass filter (0-1)");
   add_parameter("filter.time_window", rclcpp::ParameterValue(1.0),
@@ -626,27 +624,23 @@ void LaserScanMatcher::createTfFromXYTheta(double x, double y, double theta, tf2
 void LaserScanMatcher::initFilters() {
   // Load common parameters
   std::string filter_type = this->get_parameter("filter.type").as_string();
-  double max_value = this->get_parameter("filter.max_value").as_double();
 
   // Create filters based on configuration
   if (filter_type == "low_pass") {
     double alpha = this->get_parameter("filter.low_pass.alpha").as_double();
-    twist_filter_x_ = std::make_unique<LowPassFilter>(alpha, max_value);
-    twist_filter_angular_ = std::make_unique<LowPassFilter>(alpha, max_value);
-    RCLCPP_INFO(
-        get_logger(), "Created low pass filters with alpha: %f, max_value: %f", alpha, max_value);
+    twist_filter_x_ = std::make_unique<LowPassFilter>(alpha);
+    twist_filter_angular_ = std::make_unique<LowPassFilter>(alpha);
+    RCLCPP_INFO(get_logger(), "Created low pass filters with alpha: %f", alpha);
   } else if (filter_type == "moving_average") {
     double time_window = this->get_parameter("filter.time_window").as_double();
-    twist_filter_x_ = std::make_unique<MovingAverageFilter>(time_window, max_value);
-    twist_filter_angular_ = std::make_unique<MovingAverageFilter>(time_window, max_value);
-    RCLCPP_INFO(get_logger(), "Created moving average filters with time_window: %f, max_value: %f",
-        time_window, max_value);
+    twist_filter_x_ = std::make_unique<MovingAverageFilter>(time_window);
+    twist_filter_angular_ = std::make_unique<MovingAverageFilter>(time_window);
+    RCLCPP_INFO(get_logger(), "Created moving average filters with time_window: %f", time_window);
   } else if (filter_type == "median") {
     double time_window = this->get_parameter("filter.time_window").as_double();
-    twist_filter_x_ = std::make_unique<MedianFilter>(time_window, max_value);
-    twist_filter_angular_ = std::make_unique<MedianFilter>(time_window, max_value);
-    RCLCPP_INFO(get_logger(), "Created median filters with time_window: %f, max_value: %f",
-        time_window, max_value);
+    twist_filter_x_ = std::make_unique<MedianFilter>(time_window);
+    twist_filter_angular_ = std::make_unique<MedianFilter>(time_window);
+    RCLCPP_INFO(get_logger(), "Created median filters with time_window: %f", time_window);
   } else {
     RCLCPP_ERROR(get_logger(), "Unknown filter type '%s'", filter_type.c_str());
   }

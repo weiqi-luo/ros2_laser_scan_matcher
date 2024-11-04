@@ -4,19 +4,18 @@
 #include <cmath>
 #include <numeric>
 
-FilterBase::FilterBase(double max_value) : max_value_(max_value) {}
+FilterBase::FilterBase() {}
 
 double FilterBase::update(double time, double current_value) {
   if (!is_initialized_) {
     is_initialized_ = true;
-    return std::clamp(current_value, -max_value_, max_value_);
+    return current_value;
   }
-  return std::clamp(filterImpl(time, current_value), -max_value_, max_value_);
+  return filterImpl(time, current_value);
 }
 
 // Low-pass filter
-LowPassFilter::LowPassFilter(double alpha, double max_value)
-    : FilterBase(max_value), alpha_(alpha) {}
+LowPassFilter::LowPassFilter(double alpha) : FilterBase(), alpha_(alpha) {}
 
 double LowPassFilter::filterImpl(double time, double current_value) {
   if (last_time_ != 0) {
@@ -37,8 +36,8 @@ double LowPassFilter::filterImpl(double time, double current_value) {
 }
 
 // Moving average filter
-MovingAverageFilter::MovingAverageFilter(double time_window, double max_value)
-    : FilterBase(max_value), time_window_(time_window) {}
+MovingAverageFilter::MovingAverageFilter(double time_window)
+    : FilterBase(), time_window_(time_window) {}
 
 double MovingAverageFilter::filterImpl(double time, double current_value) {
   buffer_.emplace_back(time, current_value);
@@ -61,8 +60,7 @@ double MovingAverageFilter::filterImpl(double time, double current_value) {
 }
 
 // Median filter
-MedianFilter::MedianFilter(double time_window, double max_value)
-    : FilterBase(max_value), time_window_(time_window) {}
+MedianFilter::MedianFilter(double time_window) : FilterBase(), time_window_(time_window) {}
 
 double MedianFilter::filterImpl(double time, double current_value) {
   buffer_.emplace_back(time, current_value);
