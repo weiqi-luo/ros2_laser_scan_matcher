@@ -11,10 +11,11 @@
     publish_tf: true
     laser_odom_srv_channel: "~/custom_enable_laser_odom"
     filter:
-      type: "low_pass"
+      type: "moving_average"
       low_pass:
         alpha: 0.2
       moving_average:
-        time_window: 1.0
+        time_window: 0.5
+        weight_factor: 1.
       median:
-        time_window: 1.0
+        time_window: 0.5
