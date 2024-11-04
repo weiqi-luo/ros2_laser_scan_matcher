@@ -6,20 +6,19 @@
 
 class FilterBase {
  public:
-  explicit FilterBase(double max_value = 1.0);
+  explicit FilterBase();
   double update(double time, double current_value);
   virtual void reset() { is_initialized_ = false; }
 
  protected:
   virtual double filterImpl(double time, double current_value) = 0;
 
-  double max_value_;
   bool is_initialized_ = false;
 };
 
 class LowPassFilter : public FilterBase {
  public:
-  explicit LowPassFilter(double alpha = 0.2, double max_value = 1.0);
+  explicit LowPassFilter(double alpha);
 
  protected:
   double filterImpl(double time, double current_value) override;
@@ -32,7 +31,7 @@ class LowPassFilter : public FilterBase {
 
 class MovingAverageFilter : public FilterBase {
  public:
-  explicit MovingAverageFilter(double time_window = 1.0, double max_value = 1.0);
+  explicit MovingAverageFilter(double time_window);
   void reset() override {
     FilterBase::reset();
     buffer_.clear();
@@ -48,7 +47,7 @@ class MovingAverageFilter : public FilterBase {
 
 class MedianFilter : public FilterBase {
  public:
-  explicit MedianFilter(double time_window = 1.0, double max_value = 1.0);
+  explicit MedianFilter(double time_window);
   void reset() override {
     FilterBase::reset();
     buffer_.clear();

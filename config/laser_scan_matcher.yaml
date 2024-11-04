@@ -12,7 +12,6 @@
     laser_odom_srv_channel: "~/custom_enable_laser_odom"
     filter:
       type: "low_pass"
-      max_value: 1.0
       low_pass:
         alpha: 0.2
       moving_average:
