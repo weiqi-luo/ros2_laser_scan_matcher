@@ -12,8 +12,11 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time", default="false")
 
     # Get the package share directory
-    pkg_dir = get_package_share_directory('ros2_laser_scan_matcher')
-    config_file = os.path.join(pkg_dir, 'config', 'laser_scan_matcher.yaml')
+    pkg_dir = get_package_share_directory("ros2_laser_scan_matcher")
+    config_file = os.path.join(pkg_dir, "config", "laser_scan_matcher.yaml")
+    config_file = (
+        "/home/user/ros2_ws/src/ros2_laser_scan_matcher/config/laser_scan_matcher.yaml"
+    )
 
     # Define the laser scan matcher node
     laser_scan_matcher_node = Node(
@@ -56,7 +59,7 @@ def generate_launch_description():
             # Launch the laser_scan_matcher node
             laser_scan_matcher_node,
             # Launch RViz2
-            # rviz_node,
+            rviz_node,
             # Call the service to enable laser odometry after a short delay
             TimerAction(period=2.0, actions=[enable_laser_odom]),
         ]
