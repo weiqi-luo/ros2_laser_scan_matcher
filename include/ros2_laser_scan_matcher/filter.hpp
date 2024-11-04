@@ -30,7 +30,7 @@ class LowPassFilter : public FilterBase {
 
 class MovingAverageFilter : public FilterBase {
  public:
-  explicit MovingAverageFilter(double time_window);
+  explicit MovingAverageFilter(double time_window, double weight_factor);
   void reset() override {
     FilterBase::reset();
     buffer_.clear();
@@ -42,6 +42,7 @@ class MovingAverageFilter : public FilterBase {
  private:
   std::deque<std::pair<double, double>> buffer_;
   double time_window_;
+  double weight_factor_;
 };
 
 class MedianFilter : public FilterBase {

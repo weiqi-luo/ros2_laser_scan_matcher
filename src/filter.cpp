@@ -30,7 +30,8 @@ double LowPassFilter::filterImpl(double time, double current_value) {
 }
 
 // Moving average filter
-MovingAverageFilter::MovingAverageFilter(double time_window) : time_window_(time_window) {}
+MovingAverageFilter::MovingAverageFilter(double time_window, double weight_factor)
+    : time_window_(time_window), weight_factor_(weight_factor) {}
 
 double MovingAverageFilter::filterImpl(double time, double current_value) {
   buffer_.emplace_back(time, current_value);
@@ -44,7 +45,7 @@ double MovingAverageFilter::filterImpl(double time, double current_value) {
 
   for (const auto& [sample_time, value] : buffer_) {
     double dt = time - sample_time;
-    double weight = std::exp(-dt / time_window_);
+    double weight = std::exp(-weight_factor_ * dt / time_window_);
     sum += value * weight;
     total_weight += weight;
   }
