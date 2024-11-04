@@ -24,7 +24,6 @@ double LowPassFilter::filterImpl(double time, double current_value) {
     double dt = time - last_time_;
 
     // Adjust alpha based on time difference
-    // alpha = 1 - e^(-dt/tau), where tau is the time constant
     double effective_alpha = 1.0 - std::exp(-dt / alpha_);
 
     filtered_value_ = effective_alpha * current_value + (1.0 - effective_alpha) * filtered_value_;

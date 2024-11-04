@@ -248,7 +248,7 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
     odom_publisher_ =
         this->create_publisher<nav_msgs::msg::Odometry>(odom_topic_, rclcpp::SystemDefaultsQoS());
     odom_publisher_raw_ = this->create_publisher<nav_msgs::msg::Odometry>(
-        "/odom_publisher_raw", rclcpp::SystemDefaultsQoS());
+        "/odom_laser_raw", rclcpp::SystemDefaultsQoS());
   }
 
   // Create services
