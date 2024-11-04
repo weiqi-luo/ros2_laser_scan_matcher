@@ -6,7 +6,6 @@
 
 class FilterBase {
  public:
-  explicit FilterBase();
   double update(double time, double current_value);
   virtual void reset() { is_initialized_ = false; }
 
