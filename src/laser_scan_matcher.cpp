@@ -64,6 +64,9 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   RCLCPP_INFO(get_logger(), "Creating laser_scan_matcher");
   add_parameter("publish_odom", rclcpp::ParameterValue(std::string("/robot_interface/odom_laser")),
       "If publish odometry from laser_scan. Empty if not, otherwise name of the topic");
+  add_parameter("publish_odom_filtered",
+      rclcpp::ParameterValue(std::string("/robot_interface/odom_laser_filtered")),
+      "If publish filtered odometry from laser_scan. Empty if not, otherwise name of the topic");
   add_parameter("publish_tf", rclcpp::ParameterValue(false), " If publish tf odom->base_link");
 
   add_parameter("base_frame", rclcpp::ParameterValue(std::string("base_link")),
@@ -191,10 +194,12 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   kf_dist_linear_ = this->get_parameter("kf_dist_linear").as_double();
   kf_dist_angular_ = this->get_parameter("kf_dist_angular").as_double();
   odom_topic_ = this->get_parameter("publish_odom").as_string();
+  odom_topic_filtered_ = this->get_parameter("publish_odom_filtered").as_string();
   publish_tf_ = this->get_parameter("publish_tf").as_bool();
   laser_scan_topic_ = this->get_parameter("laser_scan_topic").as_string();
 
   publish_odom_ = (odom_topic_ != "");
+  publish_odom_filtered_ = (odom_topic_filtered_ != "");
   kf_dist_linear_sq_ = kf_dist_linear_ * kf_dist_linear_;
 
   input_.max_angular_correction_deg = this->get_parameter("max_angular_correction_deg").as_double();
@@ -247,8 +252,10 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   if (publish_odom_) {
     odom_publisher_ =
         this->create_publisher<nav_msgs::msg::Odometry>(odom_topic_, rclcpp::SystemDefaultsQoS());
-    odom_publisher_raw_ = this->create_publisher<nav_msgs::msg::Odometry>(
-        "/odom_laser_raw", rclcpp::SystemDefaultsQoS());
+  }
+  if (publish_odom_filtered_) {
+    odom_publisher_filtered_ = this->create_publisher<nav_msgs::msg::Odometry>(
+        odom_topic_filtered_, rclcpp::SystemDefaultsQoS());
   }
 
   // Create services
@@ -483,19 +490,6 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     odom_msg.twist.twist.linear.x = linear_x;
     odom_msg.twist.twist.linear.y = linear_y;
     odom_msg.twist.twist.angular.z = angular_z;
-    odom_publisher_raw_->publish(odom_msg);
-
-    // Apply filters
-    double filtered_linear_x =
-        twist_filter_x_ ? twist_filter_x_->update(time.nanoseconds() / 1e+9, linear_x) : linear_x;
-    double filtered_angular_z =
-        twist_filter_angular_ ? twist_filter_angular_->update(time.nanoseconds() / 1e+9, angular_z)
-                              : angular_z;
-
-    // Use filtered velocities in message
-    odom_msg.twist.twist.linear.x = filtered_linear_x;
-    odom_msg.twist.twist.linear.y = linear_y;
-    odom_msg.twist.twist.angular.z = filtered_angular_z;
 
     prev_f2b_ = f2b_;
 
@@ -510,6 +504,30 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     RCLCPP_INFO(get_logger(), "Published twist: linear velocity x=%f, y=%f, angular velocity z=%f",
         odom_msg.twist.twist.linear.x, odom_msg.twist.twist.linear.y,
         odom_msg.twist.twist.angular.z);
+
+    // Create filtered odometry message
+    if (publish_odom_filtered_ && twist_filter_x_ && twist_filter_angular_) {
+      nav_msgs::msg::Odometry filtered_odom_msg = odom_msg;  // Copy the basic structure
+      // Use filtered velocities in message
+      filtered_odom_msg.twist.twist.linear.x =
+          twist_filter_x_->update(time.nanoseconds() / 1e+9, linear_x);
+      filtered_odom_msg.twist.twist.angular.z =
+          twist_filter_angular_->update(time.nanoseconds() / 1e+9, angular_z);
+      odom_publisher_filtered_->publish(filtered_odom_msg);
+
+      RCLCPP_INFO(get_logger(),
+          "Published filtered odometry: position x=%f, y=%f, z=%f, orientation x=%f, y=%f, z=%f, "
+          "w=%f",
+          filtered_odom_msg.pose.pose.position.x, filtered_odom_msg.pose.pose.position.y,
+          filtered_odom_msg.pose.pose.position.z, filtered_odom_msg.pose.pose.orientation.x,
+          filtered_odom_msg.pose.pose.orientation.y, filtered_odom_msg.pose.pose.orientation.z,
+          filtered_odom_msg.pose.pose.orientation.w);
+
+      RCLCPP_INFO(get_logger(),
+          "Published filtered twist: linear velocity x=%f, y=%f, angular velocity z=%f",
+          filtered_odom_msg.twist.twist.linear.x, filtered_odom_msg.twist.twist.linear.y,
+          filtered_odom_msg.twist.twist.angular.z);
+    }
   }
 
   if (publish_tf_) {

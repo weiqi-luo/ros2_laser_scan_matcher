@@ -7,6 +7,7 @@
     laser_frame: "base_laser_link"
     laser_scan_topic: "/scan_1"
     publish_odom: "/odom_laser"
+    publish_odom_filtered: "/odom_laser_filtered"
     publish_tf: true
     laser_odom_srv_channel: "~/custom_enable_laser_odom"
     filter:
