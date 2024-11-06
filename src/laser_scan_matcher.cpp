@@ -462,7 +462,7 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     return false;
   }
 
-  if (publish_odom_) {
+  if (publish_odom_ || publish_odom_filtered_) {
     // stamped Pose message
     nav_msgs::msg::Odometry odom_msg;
 
