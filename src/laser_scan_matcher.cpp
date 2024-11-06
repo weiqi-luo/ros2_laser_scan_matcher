@@ -495,17 +495,21 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
 
     prev_f2b_ = f2b_;
 
-    odom_publisher_->publish(odom_msg);
+    if (publish_odom_) {
+      odom_publisher_->publish(odom_msg);
 
-    RCLCPP_INFO(get_logger(),
-        "Published odometry: position x=%f, y=%f, z=%f, orientation x=%f, y=%f, z=%f, w=%f",
-        odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y, odom_msg.pose.pose.position.z,
-        odom_msg.pose.pose.orientation.x, odom_msg.pose.pose.orientation.y,
-        odom_msg.pose.pose.orientation.z, odom_msg.pose.pose.orientation.w);
+      RCLCPP_INFO(get_logger(),
+          "Published odometry: position x=%f, y=%f, z=%f, orientation x=%f, y=%f, z=%f, w=%f",
+          odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y,
+          odom_msg.pose.pose.position.z, odom_msg.pose.pose.orientation.x,
+          odom_msg.pose.pose.orientation.y, odom_msg.pose.pose.orientation.z,
+          odom_msg.pose.pose.orientation.w);
 
-    RCLCPP_INFO(get_logger(), "Published twist: linear velocity x=%f, y=%f, angular velocity z=%f",
-        odom_msg.twist.twist.linear.x, odom_msg.twist.twist.linear.y,
-        odom_msg.twist.twist.angular.z);
+      RCLCPP_INFO(get_logger(),
+          "Published twist: linear velocity x=%f, y=%f, angular velocity z=%f",
+          odom_msg.twist.twist.linear.x, odom_msg.twist.twist.linear.y,
+          odom_msg.twist.twist.angular.z);
+    }
 
     // Create filtered odometry message
     if (publish_odom_filtered_ && twist_filter_x_ && twist_filter_angular_) {
