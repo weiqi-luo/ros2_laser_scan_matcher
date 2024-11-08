@@ -176,9 +176,9 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   add_parameter("laser_odom_srv_channel",
       rclcpp::ParameterValue(std::string{"~/enable_laser_odom"}), "enable node service channel");
 
-  add_parameter("filter.type", rclcpp::ParameterValue(std::string("low_pass")),
+  add_parameter("filter.type", rclcpp::ParameterValue(std::string("moving_average")),
       "Type of filter to use (low_pass, moving_average)");
-  add_parameter("filter.low_pass.alpha", rclcpp::ParameterValue(0.1),
+  add_parameter("filter.low_pass.alpha", rclcpp::ParameterValue(0.2),
       "Alpha value for low pass filter (0-1)");
   add_parameter("filter.moving_average.time_window", rclcpp::ParameterValue(0.5),
       "Time window for moving average filter (seconds)");
@@ -267,9 +267,7 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   initFilters();
 }
 
-LaserScanMatcher::~LaserScanMatcher() {
-  RCLCPP_INFO(get_logger(), "Destroying laser_scan_matcher");
-}
+LaserScanMatcher::~LaserScanMatcher() {}
 
 void LaserScanMatcher::subscribeToTopicsCb(
     const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
@@ -305,17 +303,10 @@ void LaserScanMatcher::createCache(const sensor_msgs::msg::LaserScan::SharedPtr&
 
   input_.min_reading = scan_msg->range_min;
   input_.max_reading = scan_msg->range_max;
-
-  RCLCPP_INFO(get_logger(), "Cache created for %lu scan points", num_scan_pts);
 }
 
-void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg)
-
-{
-  RCLCPP_INFO(get_logger(), "Received laser scan");
-
+void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg) {
   if (!initialized_) {
-    RCLCPP_INFO(get_logger(), "Initializing laser scan matcher");
     createCache(scan_msg);  // caches the sin and cos of all angles
 
     // cache the static tf from base to laser
@@ -329,7 +320,6 @@ void LaserScanMatcher::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr
 
   // Initialize the prev scan data if its not valid
   if (!prev_ldp_scan_) {
-    RCLCPP_INFO(get_logger(), "Initializing previous scan data");
     laserScanToLDP(scan_msg, prev_ldp_scan_);
     last_icp_time_ = scan_msg->header.stamp;
     return;
@@ -361,14 +351,10 @@ bool LaserScanMatcher::getBaseToLaserTf(const std::string& frame_id) {
   base_to_laser_ = base_to_laser_tf;
   laser_to_base_ = base_to_laser_.inverse();
 
-  RCLCPP_INFO(get_logger(), "Transform from base to laser frame obtained");
-
   return true;
 }
 
 bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time) {
-  RCLCPP_INFO(get_logger(), ">>>>>>>>>>>>>>>>>>> Processing scan");
-
   // CSM is used in the following way:
   // The scans are always in the laser frame
   // The reference scan (prevLDPcan_) has a pose of [0, 0, 0]
@@ -398,7 +384,6 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
 
   double dt = (time - last_icp_time_).nanoseconds() / 1e+9;
   // double pr_ch_x, pr_ch_y, pr_ch_a;
-  RCLCPP_INFO(get_logger(), "Time since last ICP: %f seconds", dt);
 
   // the predicted change of the laser's position, in the fixed frame
 
@@ -415,9 +400,6 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
   input_.first_guess[0] = pr_ch_l.getOrigin().getX();
   input_.first_guess[1] = pr_ch_l.getOrigin().getY();
   input_.first_guess[2] = tf2::getYaw(pr_ch_l.getRotation());
-
-  RCLCPP_INFO(get_logger(), "First guess: x=%f, y=%f, theta=%f", input_.first_guess[0],
-      input_.first_guess[1], input_.first_guess[2]);
 
   // If they are non-Null, free covariance gsl matrices to avoid leaking memory
   if (output_.cov_x_m) {
@@ -477,9 +459,6 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     odom_msg.pose.pose.orientation.w = f2b_.getRotation().w();
     // Get pose difference in base frame and calculate velocities
     auto pose_difference = prev_f2b_.inverse() * f2b_;
-    RCLCPP_INFO(get_logger(), "Pose difference calculated: x=%f, y=%f, theta=%f",
-        pose_difference.getOrigin().getX(), pose_difference.getOrigin().getY(),
-        tf2::getYaw(pose_difference.getRotation()));
 
     // Calculate raw velocities
     double linear_x = pose_difference.getOrigin().getX() / dt;
@@ -495,18 +474,6 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
 
     if (publish_odom_) {
       odom_publisher_->publish(odom_msg);
-
-      RCLCPP_INFO(get_logger(),
-          "Published odometry: position x=%f, y=%f, z=%f, orientation x=%f, y=%f, z=%f, w=%f",
-          odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y,
-          odom_msg.pose.pose.position.z, odom_msg.pose.pose.orientation.x,
-          odom_msg.pose.pose.orientation.y, odom_msg.pose.pose.orientation.z,
-          odom_msg.pose.pose.orientation.w);
-
-      RCLCPP_INFO(get_logger(),
-          "Published twist: linear velocity x=%f, y=%f, angular velocity z=%f",
-          odom_msg.twist.twist.linear.x, odom_msg.twist.twist.linear.y,
-          odom_msg.twist.twist.angular.z);
     }
 
     // Create filtered odometry message
@@ -518,19 +485,6 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
       filtered_odom_msg.twist.twist.angular.z =
           twist_filter_angular_->update(time.nanoseconds() / 1e+9, angular_z);
       odom_publisher_filtered_->publish(filtered_odom_msg);
-
-      RCLCPP_INFO(get_logger(),
-          "Published filtered odometry: position x=%f, y=%f, z=%f, orientation x=%f, y=%f, z=%f, "
-          "w=%f",
-          filtered_odom_msg.pose.pose.position.x, filtered_odom_msg.pose.pose.position.y,
-          filtered_odom_msg.pose.pose.position.z, filtered_odom_msg.pose.pose.orientation.x,
-          filtered_odom_msg.pose.pose.orientation.y, filtered_odom_msg.pose.pose.orientation.z,
-          filtered_odom_msg.pose.pose.orientation.w);
-
-      RCLCPP_INFO(get_logger(),
-          "Published filtered twist: linear velocity x=%f, y=%f, angular velocity z=%f",
-          filtered_odom_msg.twist.twist.linear.x, filtered_odom_msg.twist.twist.linear.y,
-          filtered_odom_msg.twist.twist.angular.z);
     }
   }
 
@@ -549,12 +503,6 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     tf_msg.child_frame_id = base_frame_;
     // tf2::Stamped<tf2::Transform> transform_msg (f2b_, time, map_frame_, base_frame_);
     tfB_->sendTransform(tf_msg);
-
-    RCLCPP_INFO(get_logger(),
-        "Published transform: translation x=%f, y=%f, z=%f, rotation x=%f, y=%f, z=%f, w=%f",
-        tf_msg.transform.translation.x, tf_msg.transform.translation.y,
-        tf_msg.transform.translation.z, tf_msg.transform.rotation.x, tf_msg.transform.rotation.y,
-        tf_msg.transform.rotation.z, tf_msg.transform.rotation.w);
   }
 
   // **** swap old and new
@@ -563,14 +511,10 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     ld_free(prev_ldp_scan_);
     prev_ldp_scan_ = curr_ldp_scan;
     f2b_kf_ = f2b_;
-
-    RCLCPP_INFO(get_logger(), "Generated new keyframe");
   } else {
     ld_free(curr_ldp_scan);
-    RCLCPP_INFO(get_logger(), "No new keyframe needed");
   }
   last_icp_time_ = time;
-  RCLCPP_INFO(get_logger(), "<<<<<<<<<<<<<<<<<<< Scan processing complete");
   return true;
 }
 
@@ -614,8 +558,6 @@ void LaserScanMatcher::laserScanToLDP(
   ldp->true_pose[0] = 0.0;
   ldp->true_pose[1] = 0.0;
   ldp->true_pose[2] = 0.0;
-
-  RCLCPP_INFO(get_logger(), "Converted laser scan to LDP");
 }
 
 void LaserScanMatcher::createTfFromXYTheta(double x, double y, double theta, tf2::Transform& t) {
@@ -623,8 +565,6 @@ void LaserScanMatcher::createTfFromXYTheta(double x, double y, double theta, tf2
   tf2::Quaternion q;
   q.setRPY(0.0, 0.0, theta);
   t.setRotation(q);
-
-  RCLCPP_INFO(get_logger(), "Created transform from x: %f, y: %f, theta: %f", x, y, theta);
 }
 
 void LaserScanMatcher::initFilters() {
@@ -652,9 +592,7 @@ void LaserScanMatcher::initFilters() {
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<scan_tools::LaserScanMatcher>();
-  RCLCPP_INFO(node->get_logger(), "Starting laser_scan_matcher node");
   rclcpp::spin(node->get_node_base_interface());
-  RCLCPP_INFO(node->get_logger(), "Shutting down laser_scan_matcher node");
   rclcpp::shutdown();
 
   return 0;
