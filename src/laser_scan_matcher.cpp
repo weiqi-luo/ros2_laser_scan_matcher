@@ -177,15 +177,13 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
       rclcpp::ParameterValue(std::string{"~/enable_laser_odom"}), "enable node service channel");
 
   add_parameter("filter.type", rclcpp::ParameterValue(std::string("low_pass")),
-      "Type of filter to use (low_pass, moving_average, or median)");
+      "Type of filter to use (low_pass, moving_average)");
   add_parameter("filter.low_pass.alpha", rclcpp::ParameterValue(0.1),
       "Alpha value for low pass filter (0-1)");
   add_parameter("filter.moving_average.time_window", rclcpp::ParameterValue(0.5),
       "Time window for moving average filter (seconds)");
   add_parameter("filter.moving_average.weight_factor", rclcpp::ParameterValue(1.5),
       "Weight factor for exponential decay in moving average filter (0-inf)");
-  add_parameter("filter.median.time_window", rclcpp::ParameterValue(0.5),
-      "Time window for median filter (seconds)");
 
   auto enable_laser_odom_service_channel =
       this->get_parameter("laser_odom_srv_channel").as_string();
@@ -645,11 +643,6 @@ void LaserScanMatcher::initFilters() {
     RCLCPP_INFO(get_logger(),
         "Created moving average filters with time_window: %f and weight_factor: %f", time_window,
         weight_factor);
-  } else if (filter_type == "median") {
-    double time_window = this->get_parameter("filter.median.time_window").as_double();
-    twist_filter_x_ = std::make_unique<MedianFilter>(time_window);
-    twist_filter_angular_ = std::make_unique<MedianFilter>(time_window);
-    RCLCPP_INFO(get_logger(), "Created median filters with time_window: %f", time_window);
   } else {
     RCLCPP_ERROR(get_logger(), "Unknown filter type '%s'", filter_type.c_str());
   }

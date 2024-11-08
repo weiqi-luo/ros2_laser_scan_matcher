@@ -17,5 +17,3 @@
       moving_average:
         time_window: 0.5
         weight_factor: 1.
-      median:
-        time_window: 0.5
