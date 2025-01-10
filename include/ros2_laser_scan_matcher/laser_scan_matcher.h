@@ -73,7 +73,7 @@ class LaserScanMatcher : public rclcpp::Node {
   tf2::Transform laser_to_base_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
-  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_filtered_;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_unfiltered_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_node_srv_;
   // Coordinate parameters
   std::string map_frame_;
@@ -81,7 +81,7 @@ class LaserScanMatcher : public rclcpp::Node {
   std::string odom_frame_;
   std::string laser_frame_;
   std::string odom_topic_;
-  std::string odom_topic_filtered_;
+  std::string odom_topic_unfiltered_;
   std::string laser_scan_topic_;
 
   // Keyframe parameters
@@ -91,7 +91,7 @@ class LaserScanMatcher : public rclcpp::Node {
 
   bool initialized_;
   bool publish_odom_;
-  bool publish_odom_filtered_;
+  bool publish_odom_unfiltered_;
   bool publish_tf_;
 
   tf2::Transform f2b_;       // fixed-to-base tf (pose of base frame in fixed frame)

@@ -64,8 +64,8 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   RCLCPP_INFO(get_logger(), "Creating laser_scan_matcher");
   add_parameter("publish_odom", rclcpp::ParameterValue(std::string("/robot_interface/odom_laser")),
       "If publish odometry from laser_scan. Empty if not, otherwise name of the topic");
-  add_parameter("publish_odom_filtered",
-      rclcpp::ParameterValue(std::string("/robot_interface/odom_laser_filtered")),
+  add_parameter("publish_odom_unfiltered",
+      rclcpp::ParameterValue(std::string("/robot_interface/odom_laser_unfiltered")),
       "If publish filtered odometry from laser_scan. Empty if not, otherwise name of the topic");
   add_parameter("publish_tf", rclcpp::ParameterValue(false), " If publish tf odom->base_link");
 
@@ -194,12 +194,12 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   kf_dist_linear_ = this->get_parameter("kf_dist_linear").as_double();
   kf_dist_angular_ = this->get_parameter("kf_dist_angular").as_double();
   odom_topic_ = this->get_parameter("publish_odom").as_string();
-  odom_topic_filtered_ = this->get_parameter("publish_odom_filtered").as_string();
+  odom_topic_unfiltered_ = this->get_parameter("publish_odom_unfiltered").as_string();
   publish_tf_ = this->get_parameter("publish_tf").as_bool();
   laser_scan_topic_ = this->get_parameter("laser_scan_topic").as_string();
 
   publish_odom_ = (odom_topic_ != "");
-  publish_odom_filtered_ = (odom_topic_filtered_ != "");
+  publish_odom_unfiltered_ = (odom_topic_unfiltered_ != "");
   kf_dist_linear_sq_ = kf_dist_linear_ * kf_dist_linear_;
 
   input_.max_angular_correction_deg = this->get_parameter("max_angular_correction_deg").as_double();
@@ -249,13 +249,13 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
 
   tf_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   if (publish_tf_) tfB_ = std::make_shared<tf2_ros::TransformBroadcaster>(*this);
+  if (publish_odom_unfiltered_) {
+    odom_publisher_unfiltered_ = this->create_publisher<nav_msgs::msg::Odometry>(
+        odom_topic_unfiltered_, rclcpp::SystemDefaultsQoS());
+  }
   if (publish_odom_) {
     odom_publisher_ =
         this->create_publisher<nav_msgs::msg::Odometry>(odom_topic_, rclcpp::SystemDefaultsQoS());
-  }
-  if (publish_odom_filtered_) {
-    odom_publisher_filtered_ = this->create_publisher<nav_msgs::msg::Odometry>(
-        odom_topic_filtered_, rclcpp::SystemDefaultsQoS());
   }
 
   // Create services
@@ -442,7 +442,7 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     return false;
   }
 
-  if (publish_odom_ || publish_odom_filtered_) {
+  if (publish_odom_ || publish_odom_unfiltered_) {
     // stamped Pose message
     nav_msgs::msg::Odometry odom_msg;
 
@@ -472,19 +472,19 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
 
     prev_f2b_ = f2b_;
 
-    if (publish_odom_) {
-      odom_publisher_->publish(odom_msg);
+    if (publish_odom_unfiltered_) {
+      odom_publisher_unfiltered_->publish(odom_msg);
     }
 
     // Create filtered odometry message
-    if (publish_odom_filtered_ && twist_filter_x_ && twist_filter_angular_) {
+    if (publish_odom_ && twist_filter_x_ && twist_filter_angular_) {
       nav_msgs::msg::Odometry filtered_odom_msg = odom_msg;  // Copy the basic structure
       // Use filtered velocities in message
       filtered_odom_msg.twist.twist.linear.x =
           twist_filter_x_->update(time.nanoseconds() / 1e+9, linear_x);
       filtered_odom_msg.twist.twist.angular.z =
           twist_filter_angular_->update(time.nanoseconds() / 1e+9, angular_z);
-      odom_publisher_filtered_->publish(filtered_odom_msg);
+      odom_publisher_->publish(filtered_odom_msg);
     }
   }
 
