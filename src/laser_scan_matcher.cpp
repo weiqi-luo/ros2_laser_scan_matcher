@@ -180,9 +180,9 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
       "Type of filter to use (low_pass, moving_average)");
   add_parameter("filter.low_pass.alpha", rclcpp::ParameterValue(0.2),
       "Alpha value for low pass filter (0-1)");
-  add_parameter("filter.moving_average.time_window", rclcpp::ParameterValue(0.5),
+  add_parameter("filter.moving_average.time_window", rclcpp::ParameterValue(0.2),
       "Time window for moving average filter (seconds)");
-  add_parameter("filter.moving_average.weight_factor", rclcpp::ParameterValue(1.5),
+  add_parameter("filter.moving_average.weight_factor", rclcpp::ParameterValue(1.0),
       "Weight factor for exponential decay in moving average filter (0-inf)");
 
   auto enable_laser_odom_service_channel =
