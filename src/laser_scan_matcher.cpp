@@ -66,7 +66,7 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
       "If publish odometry from laser_scan. Empty if not, otherwise name of the topic");
   add_parameter("publish_odom_unfiltered",
       rclcpp::ParameterValue(std::string("/robot_interface/odom_laser_unfiltered")),
-      "If publish filtered odometry from laser_scan. Empty if not, otherwise name of the topic");
+      "If publish unfiltered odometry from laser_scan. Empty if not, otherwise name of the topic");
   add_parameter("publish_tf", rclcpp::ParameterValue(false), " If publish tf odom->base_link");
 
   add_parameter("base_frame", rclcpp::ParameterValue(std::string("base_link")),
